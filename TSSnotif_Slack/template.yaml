@@ -37,7 +37,7 @@ Resources:
       Role: !ImportValue iam-role-arn-lambda
       Environment:
         Variables:
-          OutBucket: !Ref OutBucketName
+          SLACK_URL: !Ref SLACK_WEBHOOK_URL
           InBucket: !Ref InBucketName
       AutoPublishAlias: live
       Events:
@@ -89,7 +89,7 @@ Resources:
               ArnLike:
                 aws:SourceArn: !Sub "${StockOnS3SnsTopicArn}*"
       Queues:
-        - !Ref TSSQueue #Que URL to add policy
+        - !Ref TSSQueue #Queue URL to add policy
   TSSSnsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
