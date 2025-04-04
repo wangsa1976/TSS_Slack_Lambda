@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.13
+  pre_build:
+    commands:
+      - echo PreBuild `date`
+      - aws --version
+      - sam --version
+  build:
+    commands:
+      - echo Build `date`
+      - sam build
+      - sam deploy --config-env $DEPLOY_ENV

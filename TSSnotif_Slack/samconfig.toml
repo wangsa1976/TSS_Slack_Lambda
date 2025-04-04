@@ -1,0 +1,18 @@
+version = 0.1
+
+[dev.deploy.parameters]
+stack_name = "TSSUpdateNotifSlack"
+template_file = "template.yaml"
+tags = [
+    "Cost=SKY/CA/TSS-Slack",
+]
+parameter_overrides = [
+    "SubSystemName=tss-data",
+    "FunctionName=to-s3-raw-af",
+    "SLACK_WEBHOOK_URL=>-
+            https://hooks.slack.com/services/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
+",
+    "InBucketName=wni-wfc-stock-ane1",
+    "TagID=411023800",
+    "StockOnS3SnsTopicArn=arn:aws:sns:ap-northeast-1:928225274854:TagID-411023800:e35650fd-b2d5-4423-8c30-046d99fa7f9f",
+]

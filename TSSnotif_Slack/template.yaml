@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+
+Globals:
+  Function:
+    Timeout: 60
+    Layers:
+      - !Sub arn:aws:lambda:ap-northeast-1:${AWS::AccountId}:layer:rupy18-py:1
+
+Parameters:
+  OutBucketName:
+    Type: String
+  InBucketName:
+    Type: String
+  SubSystemName:
+    Type: String
+  FunctionName:
+    Type: String
+  TagID:
+    Type: String
+  StockOnS3SnsTopicArn:
+    Type: String
+
+Resources:
+  TSSupdateSlack:
+    Type: AWS::Serverless::Function # More info about Function Resource:
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      MemorySize: 1024
+      FunctionName: !Sub ${SubSystemName}-${FunctionName}
+      Architectures:
+        - arm64
+      Role: !ImportValue iam-role-arn-lambda
+      Environment:
+        Variables:
+          OutBucket: !Ref OutBucketName
+          InBucket: !Ref InBucketName
+      AutoPublishAlias: live
+      Events:
+        Sqs:
+          Type: SQS
+          Properties:
+            Enabled: true
+            Queue: !GetAtt TSSQueue.Arn
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+            BatchSize: 10
+            MaximumBatchingWindowInSeconds: 3
+            ScalingConfig:
+              MaximumConcurrency: 10
+
+  LambdaFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${TSSFunctionToS3}
+      RetentionInDays: 30
+
+  TSSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${SubSystemName}-${FunctionName}-tss-queue
+      ReceiveMessageWaitTimeSeconds: 20
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TSSDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TSSDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${SubSystemName}-${FunctionName}-tss-dead-letter-queue
+      ReceiveMessageWaitTimeSeconds: 20
+      MessageRetentionPeriod: 345600
+  TSSQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: sqs:SendMessage
+            Resource: !GetAtt TSSQueue.Arn
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub "${StockOnS3SnsTopicArn}*"
+      Queues:
+        - !Ref TSSQueue #Que URL to add policy
+  TSSSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Sub ${StockOnS3SnsTopicArn}${TagID}
+      Protocol: sqs
+      Endpoint: !GetAtt TSSQueue.Arn
+      FilterPolicy:
+        time_diff:
+          - numeric:
+              - <=
+              - 3600
